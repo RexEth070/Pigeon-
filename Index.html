@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Crypto Pigeon Relay</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+<!-- Pixel Font -->
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+
+<style>
+html, body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #000;
+  font-family: 'Press Start 2P', monospace;
+}
+
+canvas {
+  display: block;
+  margin: 0 auto;
+  background: #000;
+}
+
+#overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  color: #fff;
+  background: rgba(0,0,0,0.6);
+  z-index: 10;
+}
+
+#overlay h1 {
+  font-size: 22px;
+  margin-bottom: 20px;
+}
+
+#overlay p {
+  font-size: 10px;
+  opacity: 0.8;
+  animation: blink 1s infinite;
+}
+
+@keyframes blink {
+  0%, 50%, 100% { opacity: 0.2; }
+  25%, 75% { opacity: 1; }
+}
+
+#hud {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  color: #fff;
+  font-size: 10px;
+  z-index: 5;
+}
+</style>
+</head>
+
+<body>
+
+<div id="overlay">
+  <h1>TAP TO START</h1>
+  <p>Relay encrypted phones through the mesh</p>
+</div>
+
+<div id="hud"></div>
+
+<canvas id="game"></canvas>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener("resize", resize);
+
+const images = {};
+const imageSources = {
+  background: "background.png",
+  pigeon: "pigeon.png",
+  cactus: "cactus.png",
+  phone: "phone.png"
+};
+
+let loaded = 0;
+for (let key in imageSources) {
+  images[key] = new Image();
+  images[key].src = imageSources[key];
+  images[key].onload = () => loaded++;
+}
+
+let gameStarted = false;
+let gameOver = false;
+
+const bird = {
+  x: 120,
+  y: canvas.height / 2,
+  size: 40,
+  velocity: 0,
+  gravity: 0.6,
+  jump: -10
+};
+
+let obstacles = [];
+let phones = [];
+
+let scrollSpeed = 4;
+let frame = 0;
+let phonesCollected = 0;
+let stage = 1;
+
+const overlay = document.getElementById("overlay");
+const hud = document.getElementById("hud");
+
+function startGame() {
+  overlay.style.display = "none";
+  gameStarted = true;
+}
+
+window.addEventListener("keydown", e => {
+  if (e.code === "Space") {
+    if (!gameStarted) startGame();
+    bird.velocity = bird.jump;
+  }
+});
+
+window.addEventListener("touchstart", () => {
+  if (!gameStarted) startGame();
+  bird.velocity = bird.jump;
+});
+
+canvas.addEventListener("mousedown", () => {
+  if (!gameStarted) startGame();
+  bird.velocity = bird.jump;
+});
+
+function spawnObstacle() {
+  const height = Math.random() * (canvas.height - 200) + 100;
+  obstacles.push({
+    x: canvas.width,
+    y: height,
+    size: 60
+  });
+}
+
+function spawnPhone() {
+  phones.push({
+    x: canvas.width,
+    y: Math.random() * (canvas.height - 100) + 50,
+    size: 32,
+    float: Math.random() * 100
+  });
+}
+
+function resetGame() {
+  bird.y = canvas.height / 2;
+  bird.velocity = 0;
+  obstacles = [];
+  phones = [];
+  phonesCollected = 0;
+  stage = 1;
+  scrollSpeed = 4;
+  frame = 0;
+  gameOver = false;
+  overlay.style.display = "flex";
+  overlay.querySelector("h1").innerText = "TAP TO START";
+}
+
+function update() {
+  if (!gameStarted || gameOver || loaded < 4) return;
+
+  frame++;
+
+  bird.velocity += bird.gravity;
+  bird.y += bird.velocity;
+
+  if (bird.y < 0 || bird.y + bird.size > canvas.height) {
+    gameOver = true;
+    overlay.style.display = "flex";
+    overlay.querySelector("h1").innerText = "GAME OVER";
+    overlay.querySelector("p").innerText = "Tap to retry";
+    return;
+  }
+
+  if (frame % Math.max(90 - stage * 5, 40) === 0) spawnObstacle();
+  if (frame % 120 === 0) spawnPhone();
+
+  obstacles.forEach(o => o.x -= scrollSpeed);
+  phones.forEach(p => {
+    p.x -= scrollSpeed;
+    p.float += 0.1;
+  });
+
+  obstacles = obstacles.filter(o => o.x + o.size > 0);
+  phones = phones.filter(p => p.x + p.size > 0);
+
+  obstacles.forEach(o => {
+    if (
+      bird.x < o.x + o.size &&
+      bird.x + bird.size > o.x &&
+      bird.y < o.y + o.size &&
+      bird.y + bird.size > o.y
+    ) {
+      gameOver = true;
+      overlay.style.display = "flex";
+      overlay.querySelector("h1").innerText = "GAME OVER";
+      overlay.querySelector("p").innerText = "Tap to retry";
+    }
+  });
+
+  phones.forEach((p, i) => {
+    if (
+      bird.x < p.x + p.size &&
+      bird.x + bird.size > p.x &&
+      bird.y < p.y + p.size &&
+      bird.y + bird.size > p.y
+    ) {
+      phones.splice(i, 1);
+      phonesCollected++;
+      if (phonesCollected >= 20) {
+        phonesCollected = 0;
+        stage++;
+        scrollSpeed += 1.2;
+      }
+    }
+  });
+
+  hud.innerText = `📱 ${phonesCollected}/20  STAGE ${stage}`;
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  ctx.drawImage(images.background, 0, 0, canvas.width, canvas.height);
+
+  ctx.drawImage(images.pigeon, bird.x, bird.y, bird.size, bird.size);
+
+  obstacles.forEach(o => {
+    ctx.drawImage(images.cactus, o.x, o.y, o.size, o.size);
+  });
+
+  phones.forEach(p => {
+    ctx.save();
+    ctx.translate(p.x + p.size / 2, p.y + Math.sin(p.float) * 6);
+    ctx.drawImage(images.phone, -p.size / 2, -p.size / 2, p.size, p.size);
+    ctx.restore();
+  });
+}
+
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+loop();
+
+overlay.addEventListener("click", () => {
+  if (gameOver) resetGame();
+});
+</script>
+
+</body>
+</html>
