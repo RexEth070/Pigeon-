@@ -86,10 +86,10 @@ window.addEventListener("resize", resize);
 
 const images = {};
 const imageSources = {
-  background: "background.png",
-  pigeon: "pigeon.png",
-  cactus: "cactus.png",
-  phone: "phone.png"
+  background: "assets/background.png",
+  pigeon: "assets/pigeon.png",
+  cactus: "assets/cactus.png",
+  phone: "assets/phone.png"
 };
 
 let loaded = 0;
@@ -97,6 +97,9 @@ for (let key in imageSources) {
   images[key] = new Image();
   images[key].src = imageSources[key];
   images[key].onload = () => loaded++;
+  images[key].onerror = () => {
+    console.error("Failed to load image:", imageSources[key]);
+  };
 }
 
 let gameStarted = false;
@@ -242,7 +245,6 @@ function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   ctx.drawImage(images.background, 0, 0, canvas.width, canvas.height);
-
   ctx.drawImage(images.pigeon, bird.x, bird.y, bird.size, bird.size);
 
   obstacles.forEach(o => {
